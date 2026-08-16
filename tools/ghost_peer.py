@@ -25,7 +25,7 @@ def frame(t, payload=b""):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=9102)
+    ap.add_argument("--port", type=int, default=9104)
     ap.add_argument("--name", default="GHOST1")
     ap.add_argument("--want-ticks", type=int, default=1000000)
     ap.add_argument("--timeout", type=float, default=3600.0)

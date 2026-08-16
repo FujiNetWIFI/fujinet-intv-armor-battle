@@ -1,4 +1,4 @@
-# Networked Intellivision NFL Football over FujiNet
+# Networked Intellivision Armor Battle over FujiNet
 
 AS1600   ?= as1600
 DIS1600  ?= dis1600
@@ -6,8 +6,8 @@ BIN2ROM  ?= bin2rom
 JZINTV   ?= $(HOME)/Workspace/jzintv-20200712-src/bin/jzintv
 PYTHON   ?= python3
 
-GAME     := football
-ROM_ORG  := rom/football.bin
+GAME     := armor
+ROM_ORG  := rom/armor.bin
 EXEC     := rom/exec.bin
 GROM     := rom/grom.bin
 BUILD    := build
@@ -128,7 +128,7 @@ run-rec: $(BUILD)/$(GAME)_rec.bin
 # ---------------------------------------------------------------------------
 # Netplay server endpoint compiled into the client.
 SRV_HOST ?= fujinet.online
-SRV_PORT ?= 9102
+SRV_PORT ?= 9104
 
 $(BUILD)/srv_endpoint.asm: FORCE | $(BUILD)
 	@printf 'SRV_SPEC:\n        STRING  "N:TCP://%s:%s/"\nSRV_SPEC_LEN    EQU     %d\n' \
@@ -175,7 +175,7 @@ rom-hud: $(BUILD)/$(GAME)_nethud.bin
 # default (a stale production endpoint here once sent fuzz inputs to the
 # live server).  run_rig.sh independently refuses non-127.0.0.1 endpoints.
 rig:
-	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9102 $(BUILD)/$(GAME)_net1.bin $(BUILD)/$(GAME)_net2.bin
+	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9104 $(BUILD)/$(GAME)_net1.bin $(BUILD)/$(GAME)_net2.bin
 	test/run_rig.sh
 
 # Peer-left screen: the rig, with console 2 walking out mid-game.  The verdict
@@ -183,20 +183,20 @@ rig:
 # the emulator (fujinet-pc holds the socket open) to exercise the
 # "CONNECTION LOST" path instead of the server's PEER_LEFT.
 peerleft:
-	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9102 $(BUILD)/$(GAME)_net1.bin $(BUILD)/$(GAME)_net2.bin
+	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9104 $(BUILD)/$(GAME)_net1.bin $(BUILD)/$(GAME)_net2.bin
 	test/run_peerleft.sh
 
 # Lobby/matchmaking UI: one interactive console against three parked players,
 # two of them already in a match.  Drives the menu from the debugger and
 # decodes the BACKTAB (text + colour) after each keypress.
 lobby:
-	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9102 $(BUILD)/$(GAME)_net.bin
+	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9104 $(BUILD)/$(GAME)_net.bin
 	test/run_lobby.sh
 
 # Desync recovery: fault-inject console 2, watch both re-baseline.  Also
 # reports whether the deferred push fired at ball-dead or hit RS_PEND_MAX.
 m4:
-	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9102 $(BUILD)/$(GAME)_net1.bin $(BUILD)/$(GAME)_net2.bin
+	$(MAKE) SRV_HOST=127.0.0.1 SRV_PORT=9104 $(BUILD)/$(GAME)_net1.bin $(BUILD)/$(GAME)_net2.bin
 	test/run_m4.sh
 
 run-net1: net
@@ -220,7 +220,7 @@ dis: $(BUILD)/$(GAME).dis $(BUILD)/exec.dis
 
 # ---------------------------------------------------------------------------
 # recon: port map for any EXEC cart -- hook points, tick rate, sites to patch.
-# See PORTING.md.   make recon ROM="~/roms/NFL Football.bin"
+# See PORTING.md.   make recon ROM="~/roms/Armor Battle.bin"
 # ---------------------------------------------------------------------------
 ROM ?= $(ROM_ORG)
 

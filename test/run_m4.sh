@@ -14,7 +14,7 @@ RUN_SECS="${RUN_SECS:-100}"
 # Same guard as run_rig.sh: never point fuzz clients at production.
 if ! grep -q '127\.0\.0\.1' "$BUILD/srv_endpoint.asm" 2>/dev/null; then
     echo "run_m4.sh: build/srv_endpoint.asm is not 127.0.0.1 -- rebuild with"
-    echo "  make SRV_HOST=127.0.0.1 build/football_net1.bin build/football_net2.bin"
+    echo "  make SRV_HOST=127.0.0.1 build/armor_net1.bin build/armor_net2.bin"
     exit 1
 fi
 
@@ -26,7 +26,7 @@ sleep 0.5
 FN1=$!
 ( cd "$RIG/fn2" && exec ./fujinet -u 127.0.0.1:18082 ) > "$RIG/fn2.log" 2>&1 &
 FN2=$!
-python3 server/intv_relay_server.py --port 9102 > "$RIG/m4_server.log" 2>&1 &
+python3 server/intv_relay_server.py --port 9104 > "$RIG/m4_server.log" 2>&1 &
 SRV=$!
 trap 'kill $FN1 $FN2 $SRV 2>/dev/null || true' EXIT
 sleep 1.5
@@ -45,13 +45,13 @@ printf 'b 14D5\nr 10000000\nn 14D5\nr 49BF0\nb 14D5\nr 10000000\ng 7 14D7\nn 14D
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout $((RUN_SECS + 200)) "$JZINTV" -d --script="$RIG/m4c1.scr" \
     --fujinet=localhost:19851 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net1.bin" > "$RIG/m4c1.out" 2>&1 &
+    "$BUILD/armor_net1.bin" > "$RIG/m4c1.out" 2>&1 &
 C1=$!
 sleep 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout $((RUN_SECS + 200)) "$JZINTV" -d --script="$RIG/m4c2.scr" \
     --fujinet=localhost:19852 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net2.bin" > "$RIG/m4c2.out" 2>&1 &
+    "$BUILD/armor_net2.bin" > "$RIG/m4c2.out" 2>&1 &
 C2=$!
 wait $C1 $C2 || true
 

@@ -6,7 +6,7 @@ V="$1"
 BUILD=build
 JZINTV="${JZINTV:-$HOME/Workspace/jzintv-20200712-src/bin/jzintv}"
 
-DONE_ADDR=$(awk '/ TRACE_DONE$/ { sub(/^0+/, "", $1); print $1 }' "$BUILD/football_det_$V.sym")
+DONE_ADDR=$(awk '/ TRACE_DONE$/ { sub(/^0+/, "", $1); print $1 }' "$BUILD/armor_det_$V.sym")
 if [ -z "$DONE_ADDR" ]; then
     echo "TRACE_DONE not found in symbol file" >&2
     exit 1
@@ -25,7 +25,7 @@ SCR="$BUILD/det_$V.scr"
 
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout 300 "$JZINTV" -d --script="$SCR" -r0 \
-    -e rom/exec.bin -g rom/grom.bin "$BUILD/football_det_$V.bin" \
+    -e rom/exec.bin -g rom/grom.bin "$BUILD/armor_det_$V.bin" \
     > "$BUILD/det_$V.out" 2>&1 || true
 
 if ! grep -q "Hit breakpoint at .$DONE_ADDR" "$BUILD/det_$V.out"; then

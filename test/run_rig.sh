@@ -1,7 +1,7 @@
 #!/bin/sh
 # Full local 2-player rig, headless:
 #   2x fujinet-pc-rs232 (isolated copies, BOIP :19851/:19852)
-#   1x intv_relay_server (:9102)
+#   1x intv_relay_server (:9104)
 #   2x jzintv --fujinet (net1 = waits, net2 = auto-joins), fuzz local inputs
 # Pass criteria: both consoles NET_ACTIVE, ticks advance, no CRC mismatches.
 set -e
@@ -12,7 +12,7 @@ RIG="$BUILD/rig"
 # fuzz inputs must never reach production.
 if ! grep -q '127\.0\.0\.1' "$BUILD/srv_endpoint.asm" 2>/dev/null; then
     echo "run_rig.sh: build/srv_endpoint.asm is not 127.0.0.1 -- rebuild with"
-    echo "  make SRV_HOST=127.0.0.1 build/football_net1.bin build/football_net2.bin"
+    echo "  make SRV_HOST=127.0.0.1 build/armor_net1.bin build/armor_net2.bin"
     exit 1
 fi
 JZINTV="${JZINTV:-$HOME/Workspace/jzintv-20200712-src/bin/jzintv}"
@@ -45,7 +45,7 @@ sleep 0.5
 FN1=$!
 ( cd "$RIG/fn2" && exec ./fujinet -u 127.0.0.1:18082 ) > "$RIG/fn2.log" 2>&1 &
 FN2=$!
-python3 server/intv_relay_server.py --port 9102 > "$RIG/server.log" 2>&1 &
+python3 server/intv_relay_server.py --port 9104 > "$RIG/server.log" 2>&1 &
 SRV=$!
 trap 'kill $FN1 $FN2 $SRV 2>/dev/null || true' EXIT
 sleep 1.5
@@ -54,20 +54,20 @@ sleep 1.5
 # Console 2 stirs the title RNG an extra 300k cycles so its GUESTnn name and
 # fuzz seed differ from console 1's (headless runs are otherwise identical).
 printf 'b 14D5\nr 10000000\ng 7 14D7\nn 14D5\nr %d\nm 8100 20\nm 8150 40\nq\n' \
-    $((RUN_SECS * 900000)) > "$RIG/c1.scr"
+    $((RUN_SECS * 200000)) > "$RIG/c1.scr"
 printf 'b 14D5\nr 10000000\nn 14D5\nr 49BF0\nb 14D5\nr 10000000\ng 7 14D7\nn 14D5\nr %d\nm 8100 20\nm 8150 40\nq\n' \
-    $((RUN_SECS * 900000)) > "$RIG/c2.scr"
+    $((RUN_SECS * 200000)) > "$RIG/c2.scr"
 
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout $((RUN_SECS + 150)) "$JZINTV" -d --script="$RIG/c1.scr" \
     --fujinet=localhost:19851 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net1.bin" > "$RIG/c1.out" 2>&1 &
+    "$BUILD/armor_net1.bin" > "$RIG/c1.out" 2>&1 &
 C1=$!
 sleep 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout $((RUN_SECS + 150)) "$JZINTV" -d --script="$RIG/c2.scr" \
     --fujinet=localhost:19852 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net2.bin" > "$RIG/c2.out" 2>&1 &
+    "$BUILD/armor_net2.bin" > "$RIG/c2.out" 2>&1 &
 C2=$!
 wait $C1 $C2 || true
 

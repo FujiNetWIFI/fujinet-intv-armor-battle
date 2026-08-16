@@ -21,7 +21,7 @@ LEAVE_MODE="${LEAVE_MODE:-clean}"
 # Same guard as run_rig.sh: never point fuzz clients at production.
 if ! grep -q '127\.0\.0\.1' "$BUILD/srv_endpoint.asm" 2>/dev/null; then
     echo "run_peerleft.sh: build/srv_endpoint.asm is not 127.0.0.1 -- rebuild with"
-    echo "  make SRV_HOST=127.0.0.1 build/football_net1.bin build/football_net2.bin"
+    echo "  make SRV_HOST=127.0.0.1 build/armor_net1.bin build/armor_net2.bin"
     exit 1
 fi
 
@@ -33,7 +33,7 @@ sleep 0.5
 FN1=$!
 ( cd "$RIG/fn2" && exec ./fujinet -u 127.0.0.1:18082 ) > "$RIG/fn2.log" 2>&1 &
 FN2=$!
-python3 server/intv_relay_server.py --port 9102 > "$RIG/pl_server.log" 2>&1 &
+python3 server/intv_relay_server.py --port 9104 > "$RIG/pl_server.log" 2>&1 &
 SRV=$!
 trap 'kill $FN1 $FN2 $SRV 2>/dev/null || true' EXIT
 sleep 1.5
@@ -50,13 +50,13 @@ printf 'b 14D5\nr 10000000\nn 14D5\nr 49BF0\nb 14D5\nr 10000000\ng 7 14D7\nn 14D
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout $((RUN_SECS + 200)) "$JZINTV" -d --script="$RIG/plc1.scr" \
     --fujinet=localhost:19851 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net1.bin" > "$RIG/plc1.out" 2>&1 &
+    "$BUILD/armor_net1.bin" > "$RIG/plc1.out" 2>&1 &
 C1=$!
 sleep 2
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout $((RUN_SECS + 200)) "$JZINTV" -d --script="$RIG/plc2.scr" \
     --fujinet=localhost:19852 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net2.bin" > "$RIG/plc2.out" 2>&1 &
+    "$BUILD/armor_net2.bin" > "$RIG/plc2.out" 2>&1 &
 C2=$!
 
 # The walk-out: kill console 2 AND its FujiNet, so the relay's socket really

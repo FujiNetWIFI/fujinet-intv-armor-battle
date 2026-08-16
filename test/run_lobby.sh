@@ -1,5 +1,5 @@
 #!/bin/sh
-# Lobby-select test: one interactive console (football_net.bin, AUTO_JOIN=0)
+# Lobby-select test: one interactive console (armor_net.bin, AUTO_JOIN=0)
 # against a lobby that already holds three players, the first two of them
 # already matched with each other.  Drives the menu from the debugger and
 # decodes console 1's BACKTAB -- text AND colour -- at each step.
@@ -20,7 +20,7 @@ JZINTV="${JZINTV:-$HOME/Workspace/jzintv-20200712-src/bin/jzintv}"
 
 if ! grep -q '127\.0\.0\.1' "$BUILD/srv_endpoint.asm" 2>/dev/null; then
     echo "run_lobby.sh: build/srv_endpoint.asm is not 127.0.0.1 -- rebuild with"
-    echo "  make SRV_HOST=127.0.0.1 build/football_net.bin"
+    echo "  make SRV_HOST=127.0.0.1 build/armor_net.bin"
     exit 1
 fi
 
@@ -30,7 +30,7 @@ pkill -f 'fujinet -u 127.0.0.1:1808' 2>/dev/null || true
 sleep 0.5
 ( cd "$RIG/fn1" && exec ./fujinet -u 127.0.0.1:18081 ) > "$RIG/lb_fn1.log" 2>&1 &
 FN1=$!
-python3 server/intv_relay_server.py --port 9102 > "$RIG/lb_server.log" 2>&1 &
+python3 server/intv_relay_server.py --port 9104 > "$RIG/lb_server.log" 2>&1 &
 SRV=$!
 trap 'kill $FN1 $SRV $IDLERS 2>/dev/null || true' EXIT
 sleep 1.5
@@ -41,7 +41,7 @@ sleep 0.5
 # A keypress is injected by breaking on the instruction right after the menu's
 # `MVI $1FF,R0 / XORI #$FF,R0` and forcing R0 to the value the port would have
 # produced; poking $01FF itself does not reach the emulated pad.
-MENU_RD=$(awk '/CMP  *MENU_PREV, R0/ {print $1; exit}' "$BUILD/football_net.lst")
+MENU_RD=$(awk '/CMP  *MENU_PREV, R0/ {print $1; exit}' "$BUILD/armor_net.lst")
 [ -n "$MENU_RD" ] || { echo "run_lobby.sh: cannot find MENU_PREV compare in the listing"; exit 1; }
 echo "menu read site: \$$MENU_RD"
 KEY8=44         # keypad 8   = down
@@ -70,7 +70,7 @@ press() {       # $1 = raw value: stop at the read, force it, resume
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout 240 "$JZINTV" -d --script="$RIG/lb1.scr" \
     --fujinet=localhost:19851 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net.bin" > "$RIG/lb1.out" 2>&1 || true
+    "$BUILD/armor_net.bin" > "$RIG/lb1.out" 2>&1 || true
 
 python3 - "$RIG" <<'EOF'
 import re, sys
@@ -181,7 +181,7 @@ kill $IDLERS 2>/dev/null || true
 # Console first: fujinet-pc holds the previous run's TCP session open for a
 # while, so the server still has a stale GUEST47.  The new HELLO evicts it --
 # start the hunter only after that has happened, or it JOINs the ghost.
-HOLD=$(sed -n 's/^0x\([0-9A-F]*\) *SES_HOLD:.*/\1/p' "$BUILD/football_net.lst" | head -1)
+HOLD=$(sed -n 's/^0x\([0-9A-F]*\) *SES_HOLD:.*/\1/p' "$BUILD/armor_net.lst" | head -1)
 [ -n "$HOLD" ] || { echo "run_lobby.sh: cannot find SES_HOLD in the listing"; exit 1; }
 echo "matched-screen hold: \$$HOLD"
 # Break where the matched screen is fully painted, dump it, then let the game
@@ -192,7 +192,7 @@ printf 'b 14D5\nr 10000000\ng 7 14D7\nn 14D5\nb %s\nr 10000000\nn %s\nm 200 F0\n
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout 180 "$JZINTV" -d --script="$RIG/lb2.scr" \
     --fujinet=localhost:19851 -e rom/exec.bin -g rom/grom.bin \
-    "$BUILD/football_net.bin" > "$RIG/lb2.out" 2>&1 &
+    "$BUILD/armor_net.bin" > "$RIG/lb2.out" 2>&1 &
 C2=$!
 sleep 12
 python3 test/lobby_idlers.py DELTA --join-guest GUEST > "$RIG/lb_idlers2.log" 2>&1 &

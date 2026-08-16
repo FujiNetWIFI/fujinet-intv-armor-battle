@@ -7,10 +7,10 @@ BUILD=build
 JZINTV="${JZINTV:-$HOME/Workspace/jzintv-20200712-src/bin/jzintv}"
 FN_BOIP="${FN_BOIP:-localhost:9995}"
 
-python3 server/intv_relay_server.py --port 9102 > "$BUILD/m2_server.log" 2>&1 &
+python3 server/intv_relay_server.py --port 9104 > "$BUILD/m2_server.log" 2>&1 &
 SRV=$!
 sleep 0.5
-python3 tools/ghost_peer.py --port 9102 --want-ticks 300 \
+python3 tools/ghost_peer.py --port 9104 --want-ticks 300 \
     > "$BUILD/m2_ghost.log" 2>&1 &
 GHOST=$!
 trap 'kill $SRV 2>/dev/null || true; kill $GHOST 2>/dev/null || true' EXIT
@@ -24,7 +24,7 @@ SCR="$BUILD/m2.scr"
 
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
     timeout 100 "$JZINTV" -d --script="$SCR" --fujinet="$FN_BOIP" \
-    -e rom/exec.bin -g rom/grom.bin "$BUILD/football_net.bin" \
+    -e rom/exec.bin -g rom/grom.bin "$BUILD/armor_net.bin" \
     > "$BUILD/m2_run.out" 2>&1 || true
 
 wait $GHOST 2>/dev/null || true

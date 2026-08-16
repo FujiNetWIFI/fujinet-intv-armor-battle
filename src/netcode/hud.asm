@@ -6,8 +6,8 @@
 ; stopped moving, sound kept playing".  This row separates them live, so the
 ; counter that jumps during a pause names its cause.
 ;
-; Bottom BACKTAB row, refreshed every 16 game ticks (~1.6 s at the measured
-; ~10 Hz tick rate).  Every figure is HEX:
+; Bottom BACKTAB row, refreshed every 16 game ticks (~0.8 s at the measured
+; 20 Hz tick rate).  Every figure is HEX:
 ;
 ;   L nn  slack -- min(remote watermark - tick) this window, 0-15.  Healthy
 ;         is d-1 (02 at the stock delay of 3).  00 means the remote input
@@ -18,10 +18,11 @@
 ;         peer's input.  Normal play needs none; each round is one mailbox
 ;         STATUS transaction of pure waiting.
 ;   T nn  mailbox poll iterations / 256 this window.  One iteration is ~40
-;         cycles; a game tick measures 89.5k cycles (6 NTSC frames, ~10 Hz --
-;         see spikes/NOTES.md), so a 16-tick window is ~1.43M cycles and
-;         saturation is T = ~8C.  The local rig reads 21 (~24% of budget),
-;         down from 32 before the pump moved to one per tick.
+;         cycles; a game tick measures ~60k cycles (nominally 3 NTSC frames
+;         plus ISR-dance overhang, 20 Hz -- see spikes/NOTES.md), so a
+;         16-tick window is ~0.96M cycles and saturation is T = ~5D.  The
+;         Football rig read 21 (~35% of budget), down from 32 before the
+;         pump moved to one per tick.
 ;   R nn  state resyncs completed since the session started.  Any increment
 ;         is a desync that got repaired; if R ticks up on every pause, the
 ;         pauses ARE the resyncs and the determinism bug is the real target.

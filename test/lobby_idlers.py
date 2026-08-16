@@ -17,7 +17,7 @@ ap.add_argument("--pair", action="store_true",
 ap.add_argument("--join-guest", metavar="NAME",
                 help="last player waits for a lobby entry starting with NAME "
                      "and JOINs it, so the console under test gets role 0")
-ap.add_argument("--port", type=int, default=9102)
+ap.add_argument("--port", type=int, default=9104)
 args = ap.parse_args()
 
 socks = {}
