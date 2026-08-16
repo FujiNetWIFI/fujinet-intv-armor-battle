@@ -144,6 +144,20 @@ Confirm boundary in dis1600 at M2.
    derive from the dis and verify on screen; Baseball's manual was
    load-bearing for this, AR managed empirically).
 
+## M1 findings
+
+- `make verify-org` PASS on the first build — byte-identical rebuild
+  (`dump_rom.py` → as1600 → cmp), zero warnings.
+- `$0103` measured = **3** with the generic title-skip recipe → pass = 3 NTSC
+  frames ≈ 50 ms, 20 passes/s. Fifth cart in a row (Baseball, AR, Boxing,
+  Football, now Armor Battle). Timer entry 1 interval 1 → **sim tick = every
+  pass = 20 Hz**, `d=3` costs 150 ms.
+- At the title screen `$0100/$0101` = `$26/$11` — EXEC default ISR `$1126`
+  installed; whether the game ever swaps in its own ISR bodies is still the
+  M2 dance audit.
+- Wall-clock tick length (3 vs 4 real frames per pass, AR-style dance
+  overhang) deferred to the M3 cadence check against the built hook ROM.
+
 ## Decisions taken at plan time
 
 - Relay port **9104**, echo probe **9105** (9100/01/02/03 taken by Baseball,
