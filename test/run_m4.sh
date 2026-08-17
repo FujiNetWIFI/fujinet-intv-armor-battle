@@ -1,6 +1,7 @@
 #!/bin/sh
 # M4 recovery test: the 2-console rig with a fault injection -- console 2's
-# game scratch cell $017C (the Visitor score) is corrupted mid-run via the debugger.  Expected:
+# game scratch cell $015D (the Blue tank count: persistent, CRC-covered,
+# game-consequential) is corrupted mid-run via the debugger.  Expected:
 # CRC mismatch detected, host pushes state, both re-baseline, CRC pairs go
 # back to matching, nobody drops.
 set -e
@@ -39,7 +40,7 @@ printf 'b 14D5\nr 10000000\ng 7 14D7\nn 14D5\nr %d\nm 8100 20\nm 8160 10\nm 80C0
     $((RUN_SECS * 200000)) > "$RIG/m4c1.scr"
 # console 2: extra RNG stir for a distinct name/seed, then the fault poke
 # at ~35s (7M instructions), then the remainder of the run.
-printf 'b 14D5\nr 10000000\nn 14D5\nr 49BF0\nb 14D5\nr 10000000\ng 7 14D7\nn 14D5\nr 7000000\ne 17C 5\nr %d\nm 8100 20\nm 8160 10\nm 80C0 2\nm 8180 10\nm 8090 10\nq\n' \
+printf 'b 14D5\nr 10000000\nn 14D5\nr 49BF0\nb 14D5\nr 10000000\ng 7 14D7\nn 14D5\nr 7000000\ne 15D 5\nr %d\nm 8100 20\nm 8160 10\nm 80C0 2\nm 8180 10\nm 8090 10\nq\n' \
     $(( (RUN_SECS - 35) * 200000 )) > "$RIG/m4c2.scr"
 
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
@@ -78,15 +79,16 @@ for n in (1, 2):
     # A legitimate resync must not trip any of the framing/bounds guards.
     diag = [m.get(0x8180 + i, 0) for i in range(4)]
     # RS_WAITED: game ticks the host deferred its push waiting for a
-    # quiescent phase (AR_PHASE bit 0 set: menus / race-screen hold).
-    # RS_PEND_MAX(40) = gave up and pushed mid-race.
+    # quiescent phase (GAME_TBL != $52E4: boot screen or battle-end).
+    # RS_PEND_MAX(40) = gave up and pushed mid-battle (the expected
+    # outcome under disc-only fuzz, which rarely ends a battle).
     pend, waited = m.get(0x8187, 0), m.get(0x8189, 0)
     role = m.get(0x8160, 0)
     why = m.get(0x818A, 0)
     gtbl = m.get(0x80C0, 0) | (m.get(0x80C1, 0) << 8)
     gate = "n/a (guest)" if role else {
         0: "never pushed", 1: f"QUIESCENT PHASE after {waited} ticks",
-        2: f"cap expired at {waited} ticks (pushed mid-race)"}.get(why, "?")
+        2: f"cap expired at {waited} ticks (pushed mid-battle)"}.get(why, "?")
     print(f"console {n}: role={'host' if role == 0 else 'guest'} "
           f"active={active} dropped={dropped} hold={hold} "
           f"tick={tick} diag(slip,rej,tmo,err)={diag}")

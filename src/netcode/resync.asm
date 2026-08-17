@@ -275,10 +275,18 @@ RS_ON_STATE:
         ; position >= $8000 fails the signed range tests and splats a
         ; contiguous run over $0000+ -- the whole STIC register file.
         MVI     FRMBUF+3, R1
-        CMPI    #3,     R1
-        BGE     @@rs_bad                ; pos >= $300: nothing valid up there
+        CMPI    #4,     R1
+        BGE     @@rs_bad                ; pos >= $400: keeps the 16-bit
+                                        ;  reconstruction unwrapped; the
+                                        ;  EXACT bound is IMG_TOTAL below.
+                                        ;  (A hardcoded "pos_hi < 3" here
+                                        ;  silently dropped the 777-byte
+                                        ;  image's last chunk -- the tail
+                                        ;  with RNG/AB_TICK_EN/GAME_TBL --
+                                        ;  when the image grew past 768;
+                                        ;  caught by the m4 DIAG_REJ gate.)
         SWAP    R1,     1
-        ADD     FRMBUF+2, R1            ; R1 = pos (0..767)
+        ADD     FRMBUF+2, R1            ; R1 = pos (0..1023)
         ADDR    R0,     R1              ; + count (<= 252), no wrap possible
         CMPI    #IMG_TOTAL+1, R1
         BGE     @@rs_bad                ; chunk overruns the image: drop it
