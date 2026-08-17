@@ -304,6 +304,42 @@ Confirm boundary in dis1600 at M2.
    pass-aligned settling (`b 17D5` stop counting), never instruction-count
    alignment (builds differ in instruction streams).
 
+## M4 findings — interception proof, objective form
+
+Proof rebuilt around the deterministic demo script instead of live
+injection: `main_lag` is now SPIKE_SCRIPT+SPIKE_VIRT+d=20, compared against
+`main_det_a` (same script, d=0).  Milestones are state flips located by
+pass-counted park-and-dump bisection (`b 17D5` × N, no other breakpoints).
+
+- **Dispatch surface: exactly d.**  Battle start (the script's L-disc-E
+  fresh event replayed through the $50DB menu table into $518B) lands at
+  tick 30 with d=0 and tick 50 with d=20.
+- **Polled surface: exactly d.**  The script's held-E drive value ($44)
+  appears in SHADOW_CTRL at tick 90 with d=0 and tick 110 with d=20, while
+  the live $011F reads idle $40 in both — SHADOW_FROM_RINGS delivers
+  ring[T], proven.
+- **No cell changes during the delay window** (parks through the window
+  show pre-deploy state, AB_TICK_EN=0): no unpatched immediate path.
+- The battle-entry tick skid (M3 finding 6) is visible in the bisections:
+  the en-flip pass ends at the same TICK as its predecessor.  Milestones
+  compared in tick space are unaffected (both builds skid at the same
+  script time).
+- **Tank rotation is rate-limited by the game** (bit $20 of a free-running
+  per-tank counter gates the fresh-disc rotation step), so rotation-based
+  observables quantize ±1-2 ticks — use the shadow-value milestone, not
+  rotation, for exactness.
+
+### Harness lesson (expensive): jzIntv breakpoint-force injection is NOT
+run-to-run deterministic.  Two byte-identical scripts (settle + per-pass
+`g 2` forces at the port-read stops) produced battle-start one pass apart
+across runs — forces landing near the ISR boundary can slip a pass.  The
+§7.12 recipe remains fine for EXPLORATORY poking, but any gate that needs
+exact tick arithmetic must drive inputs IN-ROM (SCRIPT_TBL) and use the
+debugger only for park-and-dump.  Also confirmed live here: forcing at the
+shared decode entry ($1532) instead of the port reads leaves the raw latch
+holding the real (idle) port value, and the scan's unchanged-raw path then
+re-marks the stale decode as held forever — the M3-era "$44 stuck" trap.
+
 ## Decisions taken at plan time
 
 - Relay port **9104**, echo probe **9105** (9100/01/02/03 taken by Baseball,

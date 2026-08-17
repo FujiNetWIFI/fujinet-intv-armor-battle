@@ -201,40 +201,45 @@ SCR_STEP:
         CLRR    R2
         MOVR    R5,     R7
 
-; Demo script: one complete play from boot (mapped empirically, spikes/
-; NOTES.md M5): offense = RIGHT pad at boot (G_016B = 0).  Play select
-; (phase 2): offense keys 7/8/9 = play 1-3 -> $0172, then a variation
-; digit -> $0173, then Enter = ready; defense picks a formation (1-3) ->
-; $0176 + Enter -> phase 3 (line up) -> auto phase 4 (huts) -> offense
-; ACTION button = snap -> phase 5, clock runs -> offense disc steers the
-; runner (west = toward the opponent's goal) -> tackle -> phases 1/0 ->
-; phase 2, next down.  Digits are 1-based on the wire; enter = $B.
+; Demo script: boot -> battle -> both tanks driven -> both fire (mapped
+; from the M2 recon; see spikes/NOTES.md).  On the boot screen ANY event
+; dispatches $518B (all five $50DB slots) = random map + deploy + enter
+; the battle clone loop.  In battle, disc codes are consumed by the
+; POLLED surface only (battle table pair [0] is NULL): a FRESH code
+; (< $40) rotates the tank one step toward the direction, a HELD code
+; drives it; the ACTION buttons dispatch the fire handlers (kp 1 ->
+; pair [4] $5C74, kp 2/3 -> $5C2C).  Host plays the left column, guest
+; the right.  Avoid disc code 0 (north): fresh-north is $00 and the
+; unchanged-detector cannot see it against an idle stream.
 ; Rows are real cell sequences as the scan produces them: keypad held
 ; marks $C0|k, disc held = code|$40.
 SCRIPT_TBL:
-        DECLE   100, $40, $40, 0, 0     ; boot -> phase 2 (play select)
-        DECLE   3,  $40, $87, 0, 0      ; R '7': play 1
-        DECLE   3,  $40, $C7, 0, 0
-        DECLE   3,  $40, $40, 0, 0
-        DECLE   3,  $40, $82, 0, 0      ; R '2': variation 2
-        DECLE   3,  $40, $C2, 0, 0
-        DECLE   3,  $40, $40, 0, 0
-        DECLE   3,  $40, $8B, 0, 0      ; R enter: offense ready
-        DECLE   3,  $40, $CB, 0, 0
-        DECLE   3,  $40, $40, 0, 0
-        DECLE   3,  $81, $40, 0, 0      ; L '1': defense formation 1
-        DECLE   3,  $C1, $40, 0, 0
-        DECLE   3,  $40, $40, 0, 0
-        DECLE   3,  $8B, $40, 0, 0      ; L enter -> phase 3 (line up)
-        DECLE   3,  $CB, $40, 0, 0
-        DECLE   40, $40, $40, 0, 0      ; phase 3 -> 4 (huts count down)
-        DECLE   4,  $40, $40, 0, 1      ; R action top: SNAP -> phase 5
-        DECLE   4,  $40, $40, 0, 0
-        DECLE   2,  $40, $0C, 0, 0      ; R disc west (fresh)
-        DECLE   2,  $40, $4C, 0, 0      ; held
-        DECLE   100, $40, $4C, 0, 0     ; run west, clock live
+        DECLE   30, $40, $40, 0, 0      ; boot screen (tick stopped)
+        DECLE   2,  $04, $40, 0, 0      ; L disc EAST fresh -> $518B: battle
+        DECLE   2,  $44, $40, 0, 0      ; held
+        DECLE   40, $40, $40, 0, 0      ; map drawn, tanks deployed
+        DECLE   2,  $04, $40, 0, 0      ; L pulse E (rotate toward 4)
+        DECLE   2,  $44, $40, 0, 0
+        DECLE   2,  $04, $40, 0, 0      ; pulse
+        DECLE   2,  $44, $40, 0, 0
+        DECLE   2,  $04, $40, 0, 0      ; pulse
+        DECLE   2,  $44, $40, 0, 0
+        DECLE   2,  $04, $40, 0, 0      ; pulse -> facing E
+        DECLE   30, $44, $40, 0, 0      ; drive east
         DECLE   2,  $40, $40, 0, 0      ; release
-        DECLE   60, $40, $40, 0, 0      ; tackle -> next play select
+        DECLE   2,  $40, $0C, 0, 0      ; R disc WEST fresh (rotate toward 12)
+        DECLE   2,  $40, $4C, 0, 0
+        DECLE   2,  $40, $0C, 0, 0      ; pulse
+        DECLE   2,  $40, $4C, 0, 0
+        DECLE   2,  $40, $0C, 0, 0      ; pulse
+        DECLE   2,  $40, $4C, 0, 0
+        DECLE   2,  $40, $0C, 0, 0      ; pulse -> facing W
+        DECLE   30, $40, $4C, 0, 0      ; drive west, toward Blue
+        DECLE   2,  $40, $40, 0, 0      ; release
+        DECLE   3,  $40, $40, 1, 0      ; L action top: FIRE
+        DECLE   20, $40, $40, 0, 0
+        DECLE   3,  $40, $40, 0, 1      ; R action top: FIRE
+        DECLE   30, $40, $40, 0, 0
         DECLE   0                       ; done -> SLF fuzz from here
     ENDI
 
