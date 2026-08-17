@@ -239,13 +239,12 @@ SES_MAIN:
         B       @@ses_lobby
 @@ses_go:
         ; ---- matched: who is who ------------------------------------------
-        ; The server's role is a seat at the game's controller ports, and the
-        ; 1978 manual (p.4) says what those seats mean: the RIGHT controller is
-        ; the home team, so role 0 (host, the game's LEFT controller) is the
-        ; Seats (spikes/NOTES.md M7): host = left seat = HOME (defense at
-        ; boot), guest = right seat = VISITOR (first possession -- picks
-        ; the play, snaps, runs).  Scoreboard row 0/1: Home = left column
-        ; ($017D), Visitor = right ($017C).  Both consoles feed their own
+        ; The server's role is a seat at the game's controller ports.
+        ; Seats (spikes/NOTES.md M2 finding 15, verified on screen at M7):
+        ; the game tick reads [$011F + player] with player 0 = the LEFT
+        ; controller = the BLUE tanks ($015D count, "Blue  :" row), player
+        ; 1 = RIGHT = BLACK ($015E, "Black :" row).  So role 0 (host) =
+        ; Blue, role 1 (guest) = Black.  Both consoles feed their own
         ; player from their own left controller.
         JSR     R5,     UI_CLS
         CLRR    R0
@@ -813,7 +812,7 @@ SES_FLEN:
         DECLE   $0000                   ; $0E --
         DECLE   $0000                   ; $0F --
 
-STR_TITLE:      STRING  "NFL FOOTBALL NETPLAY"
+STR_TITLE:      STRING  "ARMOR BATTLE NETPLAY"
                 DECLE   0
 STR_NOFN:       STRING  "NO FUJINET - LOCAL GAME"
                 DECLE   0
@@ -831,15 +830,15 @@ STR_BUSY:       STRING  "ALREADY IN A GAME   "
                 DECLE   0
 STR_VS:         STRING  "VS "
                 DECLE   0
-STR_YOUP1:      STRING  "YOU ARE HOME"
+STR_YOUP1:      STRING  "YOU ARE BLUE"
                 DECLE   0
-STR_YOUP2:      STRING  "YOU ARE VISITOR"
+STR_YOUP2:      STRING  "YOU ARE BLACK"
                 DECLE   0
-STR_OPPP1:      STRING  "THEY ARE HOME"
+STR_OPPP1:      STRING  "THEY ARE BLUE"
                 DECLE   0
-STR_OPPP2:      STRING  "THEY ARE VISITOR"
+STR_OPPP2:      STRING  "THEY ARE BLACK"
                 DECLE   0
-STR_PICKS:      STRING  "VISITOR BALL FIRST"
+STR_PICKS:      STRING  "GOOD LUCK COMMANDER"
                 DECLE   0
 STR_USELEFT:    STRING  "USE LEFT CONTROLLER"
                 DECLE   0

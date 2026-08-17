@@ -161,8 +161,8 @@ check(last.get(0x8162) == 1 and opp == "CHARLIE",
 t_you, c_you = row_text_and_colour(last, 5)
 t_them, c_them = row_text_and_colour(last, 6)
 role = last.get(0x8160)
-me = "VISITOR" if role else "HOME"
-them = "HOME" if role else "VISITOR"
+me = "BLACK" if role else "BLUE"
+them = "BLUE" if role else "BLACK"
 check(me in t_you and c_you == {6},
       f"role {role}: 'YOU ARE {me}' in yellow: {t_you!r} {sorted(c_you)}")
 check(them in t_them and c_them == {7},
@@ -236,7 +236,7 @@ def check(cond, msg):
     print(("  PASS  " if cond else "  FAIL  ") + msg)
 
 mem = snaps[0]
-print("--- console joined BY a peer (expect role 0 = visitors)")
+print("--- console joined BY a peer (expect role 0 = Blue)")
 for r in range(12):
     s, cols, _ = row(mem, r)
     if s:
@@ -248,18 +248,19 @@ t_them, c_them, _ = row(mem, 6)
 print(f"  NET_ROLE={role} NET_ACTIVE={mem.get(0x8162)} opp={opp!r}")
 check(role == 0 and mem.get(0x8162) == 1 and opp == "DELTA",
       f"console is the host (role={role} opp={opp!r})")
-check("HOME" in t_you and c_you == {6},
-      f"host is told it is HOME, in yellow: {t_you!r} {sorted(c_you)}")
-check("VISITOR" in t_them and c_them == {7},
-      f"peer is named VISITOR, in white: {t_them!r} {sorted(c_them)}")
+check("BLUE" in t_you and c_you == {6},
+      f"host is told it is BLUE, in yellow: {t_you!r} {sorted(c_you)}")
+check("BLACK" in t_them and c_them == {7},
+      f"peer is named BLACK, in white: {t_them!r} {sorted(c_them)}")
 
 # Cross-check against the game itself: after the handover the stock game
-# must be running -- its own scoreboard ("Home ... Visitor") is the proof.
+# must be running -- its own tank-count screen (Blue/Black rows) is the proof.
 game = snaps[-1]
 rows = [row(game, r)[0] for r in range(12)]
 print(f"--- game screen after handover: {[r for r in rows if r]!r}")
-check(any(("Home" in r and "Visitor" in r) or "1st and" in r for r in rows),
-      "game reached its own scoreboard screen after the handover")
+check(any("Push disc to play" in r for r in rows)
+      or (any("Blue" in r for r in rows) and any("Black" in r for r in rows)),
+      "game reached its own tank-count screen after the handover")
 print("ROLE0 PASS" if ok else "ROLE0 FAIL")
 sys.exit(0 if ok else 1)
 EOF
