@@ -340,6 +340,27 @@ shared decode entry ($1532) instead of the port reads leaves the raw latch
 holding the real (idle) port value, and the scan's unchanged-raw path then
 re-marks the stale decode as held forever — the M3-era "$44 stuck" trap.
 
+## M5 findings — determinism
+
+- `make det` **PASS first run**: A (STALL_N 0) and B (STALL_N 9) park at
+  tick 1024 with all 256 CRC-ring slots identical and settled object table
+  + scratch identical.  The 9-wrapper RNG quarantine (stir left volatile),
+  the AB_TICK_EN shims, and the events-before-tick dispatcher all hold
+  under stall injection.
+- Trace ring + settled-state check extended to the `$0315-$031B` cart
+  globals (TRACE_RANGES in debug.asm, crc_trace_diff.py); PASS again with
+  full coverage.
+- Script: boot → battle start → both tanks pulsed/driven → both fire →
+  `$3F`-masked fuzz from tick ~250 to the park at 1024.
+- Record-and-replay over live human play stays deferred to the hardware
+  pass, as in the three previous ports.
+
+## M6 findings — transport
+
+- `make echo-test` PASS: `E_STAGE = $AA`, 100/100 rounds, avg inter-arrival
+  39.4 ms through mailbox → fujinet-pc → TCP loopback (probe on 9105).
+  Comparable to Football's measured 36.4 ms 3-transaction round.
+
 ## Decisions taken at plan time
 
 - Relay port **9104**, echo probe **9105** (9100/01/02/03 taken by Baseball,
