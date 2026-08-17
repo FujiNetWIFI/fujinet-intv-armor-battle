@@ -1,15 +1,17 @@
 # Porting FujiNet netplay to another EXEC game
 
 Written in the Baseball port repo (a working two-player netplay port of
-Mattel Baseball (1978), validated on real PiRTO II hardware); updated in this
-repo with the Auto Racing and Football ports' lessons (§2.1 caveat, §3
-false-positive classes, §4 vdispatch/text-variant entries, §5.5
-refinements, §5.6, §7.8-§7.13). Almost none of it is about any one cart. This document separates
-the part that transfers — the engine, the server, the test rig, and the
-expensive lessons — from the part that has to be re-derived for each new
-cart, and gives the procedure for re-deriving it.
+Mattel Baseball (1978), validated on real PiRTO II hardware); updated by the
+Auto Racing and Football ports (§2.1 caveat, §3 false-positive classes, §4
+vdispatch/text-variant entries, §5.5 refinements, §5.6, §7.8-§7.13); and
+updated again in this repo with the Armor Battle port's lessons (§5.7
+replay-order rule, §7.15 cart main-loop clones, §7.16 bounds sweeps,
+§7.17 in-ROM scripting for exact gates). Almost none of it is about any one
+cart. This document separates the part that transfers — the engine, the
+server, the test rig, and the expensive lessons — from the part that has to
+be re-derived for each new cart, and gives the procedure for re-deriving it.
 
-Target audience: you, six months from now, starting the fourth port.
+Target audience: you, six months from now, starting the fifth port.
 
 Everything here is verified against real ROMs and live runs. Where a number
 came from a measurement, the measurement is shown, because two of the worst
@@ -57,6 +59,7 @@ once per `$0103` frames, and `$0103` measured **3** on every cart tested:
 | Auto Racing | 3 |
 | Boxing | 3 |
 | NFL Football | 3 |
+| Armor Battle | 3 |
 
 So a pass is 3 NTSC frames ≈ 50 ms, i.e. **20 passes/second**.
 
@@ -106,6 +109,11 @@ the header-derived 9.99 Hz. The timer-table notes in `spikes/NOTES.md` had
 claimed 30 Hz for years; it was wrong, and it made every latency estimate
 3× too optimistic.
 
+(For calibration at the other extreme: Armor Battle, with no ISR dance,
+measured consecutive `$17D5` stops exactly 44,802 cycles apart = 3.000
+frames = 20.0 Hz — the cleanest cadence of the four ports. Football's wall
+tick ran ~4 frames because of its dance overhang.)
+
 ### 2.3 The delay budget follows from the tick
 
 `d` buys you jitter tolerance of `d × tick` milliseconds and costs you exactly
@@ -138,20 +146,21 @@ It answers, per cart:
 | controller/phase cells | `$011F`/`$0120` reads to redirect at a shadow pair; `$035D` writes = the game's phase machine |
 | display writes | STIC/GRAM writes; **zero means display state is static** and can be repaired from the header (§7.5) |
 
-### What recon says about the three obvious next ports
+### What recon says about the ported carts (and Boxing, the obvious next)
 
-| | Baseball (done) | NFL Football | Boxing | Auto Racing |
-|---|---|---|---|---|
-| timer table | `$501C` | `$5026` | `$501C` | `$5029` |
-| start-of-game | `$5034` | `$5075` | `$5053` | `$5037` |
-| game entries / interval | `$5048` / 2 | `$5034` / 1, `$56EF` / 15 | `$51F0`,`$5A0F`,`$57AB` / 1, `$52F2`,`$5297` / 16 | `$511E` / 1, `$51B7` / 15 |
-| **tick rate** | **10 Hz (100 ms)** | **20 Hz (50 ms)** | **20 Hz (50 ms)** | **20 Hz (50 ms)** |
-| RNG sites to wrap | 5 | 3 | 8 | 4 |
-| `$035D` phase installs | 7 | 1 | 3 | 1 |
-| `$011F`/`$0120` reads found | 2 | 1 | 0 | 0 |
-| timer arm/stop calls | 1 (`$181E`) | 0 | 5 (`$1838`/`$1844`) | 0 |
-| STIC writes | **0** | 3 (incl. `$0030`) | 1 (`$0020`) | **7** (incl. `$0030`/`$0031`) |
-| display mode (`$500E`) | 0 colour stack | 0 colour stack | 0 colour stack | **1 fg/bg** |
+| | Baseball (done) | NFL Football (done) | Auto Racing (done) | Armor Battle (done) | Boxing |
+|---|---|---|---|---|---|
+| timer table | `$501C` | `$5026` | `$5029` | `$5050` | `$501C` |
+| start-of-game | `$5034` | `$5075` | `$5037` | `$505A` | `$5053` |
+| game entries / interval | `$5048` / 2 | `$5034` / 1, `$56EF` / 15 | `$511E` / 1, `$51B7` / 15 | `$554E` / 1 | `$51F0`,`$5A0F`,`$57AB` / 1, `$52F2`,`$5297` / 16 |
+| **tick rate** | **10 Hz (100 ms)** | **20 Hz (50 ms)** | **20 Hz (50 ms)** | **20 Hz (50 ms)** | **20 Hz (50 ms)** |
+| RNG sites to wrap | 5 | 3 | 4 | **9 (+1 stir left volatile)** | 8 |
+| `$035D` phase installs | 7 | 1 | 1 | 4 (3 tables, one EXEC-resident: `$1906`) | 3 |
+| `$011F`/`$0120` reads found | 2 | 1 | 0 | 1 (both seats via `[$011F+player]`) | 0 |
+| timer arm/stop calls | 1 (`$181E`) | 0 | 0 | **3** (`$1838`/`$1844`, stale absolute entry addr → shims) | 5 (`$1838`/`$1844`) |
+| STIC writes | **0** | 3 (incl. `$0030`) | **7** (incl. `$0030`/`$0031`) | **0** (recon's 1 hit = class-1 false positive) | 1 (`$0020`) |
+| display mode (`$500E`) | 0 colour stack | 0 colour stack | **1 fg/bg** | 0 colour stack | 0 colour stack |
+| main loop | EXEC | EXEC | EXEC | **cart clone during battle (§7.15)** | EXEC (verify!) |
 
 Reading that table, before writing a line of code:
 
@@ -183,6 +192,17 @@ Reading that table, before writing a line of code:
   exclusively through the `$035D` handlers. That finding changed the spike
   design, not the wire format. Run the dis1600 confirmation pass *before*
   committing to a wire format or a spike design.)
+- **Armor Battle's answers, for calibration**: the single `$011F` reference
+  (`MVII #$011F,R3` + `ADDR player`) serves BOTH seats — one operand patch,
+  shadow pair consecutive; the three timer-API calls all pass the ABSOLUTE
+  address of the original table's game entry (`$5054`), stale after
+  relocation → each `JSR` retargeted to a shim that flips a virtualized
+  armed flag (`AB_TICK_EN`, sim state in the CRC and image tails). Decode
+  WHICH entry each timer-API site targets before deciding: a music-entry
+  (slot 0) call survives relocation untouched; a game-entry call must be
+  shimmed, because pointing it at the new table would let the game stop
+  MASTER_TICK itself. Its per-battle dead moments (boot screen, battle-end
+  explosion) gate the resync; mid-battle falls to the cap, AR-style.
 
 ### Known recon false-positive classes (seen across three carts)
 
@@ -190,14 +210,17 @@ Recon is a linear word scan; these three patterns have each produced a bogus
 candidate that hand-decoding the raw words exposed:
 
 1. **Misaligned instruction decode** — a "STIC write" that is really the
-   middle of two consecutive 3-word `JSR R5` instructions (Football `$5041`).
-   Decode the surrounding words as instructions from a known-good boundary.
+   middle of two consecutive 3-word `JSR R5` instructions (Football `$5041`),
+   or an `SDBD`-prefixed `MVII` pair (Armor Battle `$508E`: "MVO R1,$0001"
+   was `SDBD / MVII #$5114,R1`). Decode the surrounding words as
+   instructions from a known-good boundary.
 2. **`CMPI` against a constant that happens to be a hot cell address** — a
    loop-bound compare of a pointer against `#$035D`/`#$035F`, not a read of
    the cell (Auto Racing `$520F`, Football `$5A12`).
 3. **The operand you patch is the `MVI`, not the `MVO`** — at a raw-port
    latch site the *read* operand (`$01FE`/`$01FF`) is the patch target; the
-   `MVO` destinations (`$0123`/`$0124`) stay (both AR and Football).
+   `MVO` destinations (`$0123`/`$0124`) stay (AR, Football, and Armor
+   Battle — three carts in a row).
 
 ---
 
@@ -233,10 +256,13 @@ candidate that hand-decoding the raw words exposed:
 | resync image layout | `resync.asm` `IMG_*` | §5.4 |
 | quiescent point for resync | `BB_TBL_PREPITCH` (`$5335`) | §7.6 |
 | controller→role mapping | `NET_ROLE` handling | the game's manual, then verify on screen |
+| timer arm/stop shims | Armor Battle's `AB_STOP/START_SHIM` | decode each site's target entry first (§3); music-entry calls need nothing |
+| replay order (events vs tick) | `MASTER_TICK`/`LS_PASS` call order | the cart's own scan-vs-dispatch order (§5.7) |
+| scan-call wrapper | Armor Battle's `NET_SCAN_WRAP` | only if the cart runs its own main loop (§7.15) |
 
 ---
 
-## 5. The six things that make it deterministic
+## 5. The seven things that make it deterministic
 
 Get these wrong and the two consoles drift; everything else is plumbing.
 
@@ -307,6 +333,21 @@ hundreds of ticks (AR: `SCR_STEP` clobbered R2 = the tick tag inside
 dropped as stale). When inserting any call into `LS_PASS`/`MASTER_TICK`,
 enumerate what is live in R0-R5 at that point and check the callee against
 the list.
+
+### 5.7 Replay events in the cart's own scan-vs-dispatch order
+
+The virtual dispatch must land events on the same side of the game tick as
+the real scan does. In the EXEC main loop the scan runs AFTER the timer
+dispatch, so replay-after-the-tick (Baseball/AR/Football's order) is
+correct there. Armor Battle's battle loop runs its scan BEFORE the
+dispatch, so stock handlers fire before the same pass's game tick —
+replay-after applied every event one tick late and broke virt==hook on
+tank rotation. Replay-BEFORE-the-tick is timeline-correct for both loop
+shapes given capture-at-dispatch ring indexing (on the EXEC loop, the
+value captured at dispatch N is scan N-1's output, whose stock events also
+landed in the no-mutator window between tick N-1 and tick N) — but derive
+this from YOUR cart's loop, don't assume. The check is the virt==hook
+bit-compare with a script that drives real play.
 
 ---
 
@@ -485,6 +526,15 @@ the game's own latch cells consistent by poking the shadow cells at the
 tick stop, and align the script to the actual stop cycle first (the first
 stop after arming the breakpoints is the scan's, not the tick's).
 
+Armor Battle added two hard caveats. First, forcing at the shared decode
+entry (`$1532`) instead of the port reads leaves the raw latch holding the
+real (idle) port value; the scan's unchanged-raw path then re-marks the
+stale decode as held **forever** ("$44 stuck" — the decoded cells are
+sticky latches by design, §15AC re-marks the old value as held on every
+no-event pass). Second — see §7.17 — even the correct port-read recipe is
+not run-to-run deterministic, so use it for exploration only, never for a
+gate that does exact tick arithmetic.
+
 ### 7.13 Kill stale rig processes first
 
 A stale fujinet-pc instance silently holds its BOIP port and every later
@@ -492,7 +542,64 @@ emulator launch against it becomes a no-op that *looks* like a netcode hang.
 Every rig script `pkill`s its own instances before starting. Keep it that
 way in new test scripts.
 
-### 7.14 Known, not yet acted on
+### 7.15 A cart may abandon the EXEC main loop entirely
+
+Armor Battle's battle-start handler generates the map, **resets SP to
+`$02F1`, and enters a cart-resident clone of the EXEC main loop**
+(`L_52B5`): phase-wait on `$0102`/`$0103` → raw-port latch → `$11FA`
+object/collision walk → `$14F1` scan → `$17D5` timer dispatch → `$1AAD`
+sound → `X_RAND1` stir → loop. The EXEC loop at `$108F` never runs again
+after the first battle. Consequences, all of which generalize:
+
+- The hook survives **because it lives in the timer table**: any loop that
+  dispatches `$17D5` with the standard `$0102` pacing runs MASTER_TICK.
+  Hooking anything loop-specific would not have survived.
+- **The clone's pass order can differ** (scan before dispatch here) —
+  that is what forces the §5.7 replay-order derivation.
+- **A cart-side per-pass RNG stir** appears as a patchable "RNG site" but
+  is the clone's copy of the EXEC loop's stir: leave it on the volatile
+  LFSR, wrap only consumers (recon found 10 "sites"; 9 were consumers).
+- **An abandoning handler kills the netcode pass that dispatched it**: the
+  vdispatch-called handler never returns, so that MASTER_TICK's tail (the
+  `$035D` re-null, the tick++) is skipped once. The re-null hole is closed
+  structurally by patching the clone's own scan `JSR` to a wrapper
+  (`NET_SCAN_WRAP`: adopt + null + tail-call the scan; stock-behaving
+  builds compile it to a plain jump). The skipped tick++ is a benign,
+  symmetric one-tick counter skid per battle entry — document it and make
+  the virt==hook verdict accept state-identical + skid.
+- **A cart that resets its own SP may keep globals above the stack base**:
+  Armor Battle stores real state at `$0315-$031B`, inside the range the
+  model previously excluded as "stack". Census the `$02F0-$031C` range per
+  cart; anything game-written belongs in the CRC and the image (and mind
+  the shrunken stack headroom under the netcode + ISR frames — the CRC
+  coverage is what catches an overflow).
+
+### 7.16 An image layout change must sweep every bounds constant
+
+Growing the resync image from 761 to 777 bytes tripped a quick-guard that
+hardcoded `pos_hi < 3` ("nothing valid at `$300+`") in the STATE-chunk
+applier: the image's final chunk — the tail with the RNG, the virtualized
+timer flag and GAME_TBL — was silently refused, and recovery still LOOKED
+successful because those cells happened to match. Only the m4 verdict's
+`DIAG == 0` requirement exposed it. When any `IMG_*` constant changes,
+grep the applier and the pusher for every numeric comparison in the same
+units, and keep only symbolic bounds tight; hardcoded quick-guards get the
+loosest correct value (wrap prevention), with the exact bound in one place.
+
+### 7.17 Breakpoint-force injection is not run-to-run deterministic
+
+Two byte-identical jzIntv scripts (title-skip + pass-counted settle +
+per-pass `g 2` forces at the port-read stops) produced a battle start one
+pass apart on different runs — a forced stop near the ISR boundary can
+slip a pass, and the drift compounds. The emulated machine itself is
+deterministic; the debugger's stop/resume interleaving is not. Any gate
+that needs exact tick arithmetic (the interception proof, determinism,
+anything CRC-compared) must generate its inputs **in-ROM** (`SCRIPT_TBL` +
+the masked fuzz) and use the debugger only to park (`b 17D5` × N stops)
+and dump. Alignment is by stop count, never by instruction count —
+different builds execute different instruction streams.
+
+### 7.18 Known, not yet acted on
 
 - **Nagle is on for `N:TCP` sockets.** `NetworkProtocolTCP::open_client_connection`
   never calls `setNoDelay(true)` (only the modem devices do), so a
@@ -553,11 +660,18 @@ Each step has a gate that must pass before the next one is worth starting.
 [ ] CRC ring invalidated with a non-zero marker and cleared at session start
 [ ] DIAG counters wired to the peer-left screen
 [ ] HUD enabled for bring-up, disabled for release
+[ ] timer arm/stop sites decoded: which entry does each target? shims where needed
+[ ] cart-side main loop? scan-vs-dispatch order derived; replay order matches (5.7)
+[ ] $02F0-$031C censused for cart globals above the stack base (7.15)
+[ ] image bounds constants swept after any IMG_* change (7.16)
+[ ] exact-tick gates driven by in-ROM script, parked by stop count (7.17)
 ```
 
 ## 10. Where the detail lives
 
-- `spikes/NOTES.md` (this repo) — Football-specific recon, decodes, risks.
+- `spikes/NOTES.md` (this repo) — Armor-Battle-specific recon, decodes,
+  risks, and the full milestone log (the battle main-loop clone, the timer
+  shims, the replay-order fix, the injection-nondeterminism forensics).
 - `~/Workspace/intv-baseball-experiment/spikes/NOTES.md` — the EXEC
   reverse-engineering notes: main loop, timer table internals, controller
   decode, raw port encoding, decoded input byte format, jzIntv debugger
@@ -567,5 +681,8 @@ Each step has a gate that must pass before the next one is worth starting.
   pass in stop order; never add extra breakpoints to an injection run),
   event-semantics corrections (keypad digits 1-based into handlers, ENTER =
   raw `$28` → event `$B`), the VBLANK-dance analysis, the leak forensics.
+- `~/Workspace/fujinet-intv-football/spikes/NOTES.md` — third-port deltas:
+  the ISRVEC-labelled dance discovery, `r N` instruction units, PC-keyed
+  injection, the play-system map.
 - `src/netcode/hud.asm` — how to read the HUD.
 - `README.md` — build targets, interactive runs, current status.

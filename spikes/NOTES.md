@@ -361,6 +361,50 @@ re-marks the stale decode as held forever — the M3-era "$44 stuck" trap.
   39.4 ms through mailbox → fujinet-pc → TCP loopback (probe on 9105).
   Comparable to Football's measured 36.4 ms 3-transaction round.
 
+## M7 findings — lockstep + lobby
+
+- `make rig` **PASS first run**: both consoles active, 2248/2251 ticks,
+  DIAG all zero, 36 CRC pairs verified, zero mismatches.
+- `make lobby` PASS 12/12 + ROLE0 PASS.  Session strings re-derived:
+  seats are **BLUE (role 0 = host = left) / BLACK (role 1 = guest =
+  right)**, verified on screen — the handover lands on the stock
+  "Blue  :50 / Black :50 / Push disc to play" screen, which is the lobby
+  test's marker.
+- Seat mapping confirmed the M2 finding-15 inference: tick player index 0
+  = left pad = Blue tanks ($015D).
+
+## M8 findings — desync recovery
+
+- Fault cell `$015D` (Blue tank count), poked to 5 on the guest mid-run.
+- First run **FAILED the DIAG gate** and caught a real bug: the STATE-chunk
+  position quick-guard hardcoded `pos_hi < 3` (image <= 768 bytes), so the
+  777-byte image's LAST chunk — positions 768-776, the tail carrying
+  RNG/AB_TICK_EN/GAME_TBL — was silently refused (`DIAG_REJ = 1`).
+  Recovery only looked successful because the tail happened to match.
+  Guard relaxed to the unwrap-only check (`pos_hi < 4`); the exact bound
+  is the symbolic `IMG_TOTAL` compare that follows.  **Lesson: an image
+  layout change must sweep EVERY bounds constant, including "obviously
+  generous" quick-guards** — and the m4 verdict's DIAG==0 requirement is
+  what caught it.
+- Second run **M4 PASS**: 1 mismatch, host pushed at the cap (40 ticks,
+  mid-battle — the expected outcome under disc-only fuzz, AR-style),
+  clean CRCs after, DIAG all zero.
+
+## M9 findings — peer-left
+
+- Both branches PASS with no code changes: clean close → server PEER_LEFT
+  → "OPPONENT LEFT" (PEER_WHY=1); fujinet-pc holding the socket → console
+  self-detects → "CONNECTION LOST" (PEER_WHY=0).  DIAG counters printed on
+  the terminal screen, park stable.
+
+## M10 — hardware images
+
+- `make rom rom-hud SRV_HOST=fujinet.online SRV_PORT=9104` →
+  `build/armor_net.rom` (release) + `build/armor_nethud.rom` (HUD
+  bring-up).  Netcode segment $6000-$6EBE ($EBF words).  Physical
+  two-PiRTO-II validation and record-and-replay over live human play
+  remain outstanding, as on the three previous ports.
+
 ## Decisions taken at plan time
 
 - Relay port **9104**, echo probe **9105** (9100/01/02/03 taken by Baseball,
