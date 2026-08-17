@@ -99,5 +99,7 @@ TRACE_DONE:
 ; crc_trace_diff.py).  The ring checksums only ISR-clean state.
 TRACE_RANGES:
         DECLE   $015D,  $01F0           ; game scratch vars
+        DECLE   $0315,  $031C           ; Armor Battle cart globals above the
+                                        ;  reset stack base (M2 finding 10)
         DECLE   RNG_LO, RNG_HI+1        ; canonical game RNG (sim space)
         DECLE   0, 0

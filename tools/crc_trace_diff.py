@@ -52,7 +52,7 @@ def main():
     # Settled-state check at the park point: object table + game scratch.
     # (The ring excludes ISR-written object cells; this covers them.)
     settled = [x for x in sorted(set(a) & set(b))
-               if a[x] != b[x] and (0x015D <= x < 0x01F0 or 0x031D <= x < 0x35E)]
+               if a[x] != b[x] and (0x015D <= x < 0x01F0 or 0x0315 <= x < 0x35E)]
     if settled:
         print(f"SETTLED-STATE FAIL: {len(settled)} cells differ at park:")
         for x in settled[:10]:
