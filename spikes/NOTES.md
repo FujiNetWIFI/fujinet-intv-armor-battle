@@ -158,6 +158,100 @@ Confirm boundary in dis1600 at M2.
 - Wall-clock tick length (3 vs 4 real frames per pass, AR-style dance
   overhang) deferred to the M3 cadence check against the built hook ROM.
 
+## M2 findings (dis1600) — every plan-time decode CONFIRMED
+
+1. **[dis] Timer-API sites**: all three (`$50BC`, `$5287`, `$5ED3`) pass
+   R1 = `$5054` = absolute address of original entry 1 exactly as decoded at
+   plan time. `X_TIMER_STOP/START` internals (`$183A-$1852`): convert R1 to
+   the countdown-slot pointer via `.EXEC.811` (header-table-relative), then
+   write `interval|$8000` (STOP) / `interval&$7FFF` (START) to the slot.
+   Stale R1 after relocation = garbage slot write → **all three sites
+   shimmed** (`AB_STOP_SHIM`/`AB_START_SHIM` → virtualized `AB_TICK_EN`).
+   Semantics: tick stopped on the boot screen, started at battle start,
+   stopped at battle end. Entry 0 (music) keeps slot 0 → the music system's
+   header-relative re-arms need no shim.
+2. **[dis] THE HEADLINE: Armor Battle runs its own main-loop clone during
+   battle** (`L_52B5`). The battle-start handler `$518B` (dispatched from the
+   boot screen's `$50DB` table) generates the map, deploys tanks, **resets SP
+   to `$02F1` (`$52B3`) and enters a cart-resident copy of the EXEC loop**:
+   phase-wait on `$0102`/`$0103` → raw-port latch (`$01FE` @ `$52BF`, `$01FF`
+   @ `$52C8`, `$BE` ghosting guard) → `$11FA` object/collision walk → `$14F1`
+   scan → `$17D5` timer dispatch → `$1AAD` sound → `X_RAND1` stir (`$52DF`)
+   → loop. The EXEC loop at `$108F` never runs again after the first battle.
+   Consequences: (a) MASTER_TICK still fires per pass through the relocated
+   table via `$17D5` — the hook works unchanged in both loops; (b) the
+   stall spin inside the dispatch works unchanged (`$0102` freeze covers the
+   clone's phase-wait); (c) **the scan runs BEFORE the dispatch** in battle —
+   the `$035D` null written at the end of MASTER_TICK covers the *next*
+   pass's scan, same invariant, order shifted; (d) the in-game restart is
+   `J L_5061` (`$5E2F`), bypassing the header vector → NET_START/lobby runs
+   exactly once at cold boot.
+3. **[dis] RNG sites: 9 consumers + 1 stir.** `$52DF` is `X_RAND1` with
+   R0=1, result discarded, at the bottom of the clone loop = the cart's copy
+   of the EXEC loop's per-pass stir → left UNPATCHED (keeps churning volatile
+   `$035E`, matching how the EXEC loop's own stir is treated during menus).
+   The other nine (incl. `$5193` = random map select ÷ $28, `$5D6C/$5D73` =
+   mine placement) are consumers → wrapped. 18 RNG patch words, not 20.
+4. **[dis] Polled input**: the game tick (`$554E`) reads `[$011F + player]`
+   (`MVII #$011F,R3; ADDR R0,R3; MVI@`), player index 0/1 — ONE operand word
+   (`$5569`) covers BOTH seats. No other `$011F/$0120` reads in the cart. No
+   `$0121/$0122` keypad-state reads at all (keypad handled purely via
+   dispatch, if at all).
+5. **[dis] Raw latches**: patch the `MVI` operands `$52C0` (right) and
+   `$52C9` (left); the recon's `$52C7/$52D0` MVO hits are the store
+   destinations (class-3 false positive, as predicted).
+6. **[dis] The lone STIC-write recon hit was the class-1 misaligned decode**:
+   `$508E` is `SDBD` prefixing `MVII #$5114,R1` (a print-string pointer).
+   **Zero real STIC writes, zero GRAM writes** — display fully static from
+   the header; §7.5 reassert applies with nothing to fight.
+7. **[dis] Sound-gate audit CLEAN**: zero cart references to `$0149`,
+   `$014A/B`, `$0159`, `$0125/6`, `$0143/4`, `$035F`. Sound triggers are
+   fire-and-forget through `$1BBE` (play-SFX-from-inline-param, 7 sites) and
+   `$1A62` (3 sites); nothing branches on sound state.
+8. **[dis] No ISR dance**: the cart never writes `$0100/$0101` (grep for
+   ISRVEC and the raw addresses both empty). Simpler than Football and AR:
+   no DANCE_SETTLE wait needed before terminal screens (bounded settle kept
+   anyway — it's harmless).
+9. **[dis] Handler tables**: `$1906` is an ALL-ZERO EXEC-RESIDENT null table
+   (the EXEC's own NET_NULL_TBL, also noted in the Football port's equ
+   file); `$50DB` = 5 slots all → `$518B`; `$52E4` = slot0 NULL, slot1
+   `$5BE3`, slot2 `$5C74`, slot3/4 `$5C2C`. Battle-end/explosion/restart
+   logic runs on the **object-walk callback surface** (`$11FA`, mainline,
+   per pass, input-independent) — that's why it survives the nulled `$035D`;
+   it needs no virtualization, only determinism (which mainline execution
+   gives).
+10. **[dis] Scratch census**: game state `$015D-$0187` (well inside the
+    standard `$015D-$01EF` CRC range), object table `$031D-$035C` standard,
+    **plus cart globals `$0315-$031B`** — Armor Battle resets its stack to
+    `$02F1` and keeps real state (terrain-map pointer `$0316` etc.) above
+    it, inside the range the model previously excluded as "stack". CRC range
+    and resync image must carry `$0315-$031B`. `$011A` = collision mask
+    (game-written `$0022` at battle setup, EXEC-read) — deterministic
+    config, stays excluded. EXEC walk scratch `$011B/$011C/$0319-$031B`
+    note: `$0319-$031B` are rewritten by the walk each pass from object
+    state → deterministic at tick boundaries; included with the cart
+    globals for simplicity.
+11. **[dis] `$0187` (battle-over flag)** is set via `MVO R6,$0187` — an
+    any-nonzero idiom storing the stack pointer. Across two netplay consoles
+    the call depth is identical → CRC-safe. A virt-vs-hook bit-compare
+    diverges on this cell once a battle ends → the M3 window must stop
+    before battle end (script does).
+12. **Quiescent gate decision**: quiescent = `GAME_TBL != AB_HTBL_BATTLE`
+    (boot screen, or battle-end/explosion). Mid-battle there is no dead
+    moment (continuous real-time, like AR) → cap `RS_PEND_MAX = 40` ticks
+    (~2 s) then accept the push with a visible jump, AR-style. The
+    double-mismatch rule for the object-table CRC stays.
+13. **M8 fault cell**: `$015D` (Blue tank count) — persistent, CRC-covered,
+    game-consequential (battle-end decrements + winner check + boot-screen
+    display).
+14. **Lobby handover marker**: "Blue" at BACKTAB `$0219` (row 1) — printed
+    by the boot screen (`X_PRINT_R1` from `$510C` "Blue  :" / `$5114`
+    "Black :", counts via `X_PRNUM_RGT`).
+15. **Seats**: `player index 0 = left = Blue` (tick processes `[$011F+0]`
+    against Blue state at `$016D+0`; winner check: `$015D`==0 → "Black
+    wins!"). Host = role 0 = left = **Blue**, guest = right = **Black**.
+    Verify on screen at M7.
+
 ## Decisions taken at plan time
 
 - Relay port **9104**, echo probe **9105** (9100/01/02/03 taken by Baseball,
