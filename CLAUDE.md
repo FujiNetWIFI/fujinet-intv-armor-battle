@@ -27,7 +27,7 @@ Conventions:
 - `make rig` / `m4` / `peerleft` / `lobby` force the 127.0.0.1 server; never
   point automated runs at a production endpoint.
 - Server: `server/intv_relay_server.py`, default port 9104 (Baseball owns
-  9100, Auto Racing 9101, Football 9102 with probe 9103 on a shared host).
+  9100, Auto Racing 9101, Football 9102 with probe 9103, Utopia 9106 on a shared host).
   Echo latency probe: 9105.
 
 Toolchain: as1600 / dis1600 / bin2rom; jzIntv at

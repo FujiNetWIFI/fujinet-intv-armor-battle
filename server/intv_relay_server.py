@@ -366,13 +366,24 @@ class ProtocolError(Exception):
 
 
 class LobbyPublisher:
-    """Registers this server with the FujiNet Lobby (fujirealm pattern:
-    POST /server on state changes, DELETE /server on shutdown).
+    """Registers this server as a room on the FujiNet Lobby
+    (https://lobby.fujinet.online): POST /server on state changes AND on a
+    periodic keepalive, status:"offline" POST on shutdown.
+
+    The Lobby tracks a lastping per entry, so a quiet server that never
+    re-POSTs goes stale in every client's list -- the keepalive re-POST
+    (KEEPALIVE_SECS) is what keeps the room visible between matches.
+
+    The platform string must be "intv": that is what the Intellivision
+    Lobby client queries (`/view?bin=1&platform=intv`, fujinet-lobby
+    intv/st_list.bas); "intellivision" entries never show up in it.
 
     One worker thread owns all HTTP traffic: updates are coalesced under a
     condition variable and only the newest player count is published, at most
     once per second, so connection churn can never fan out into unbounded
     threads or overlapping requests."""
+
+    KEEPALIVE_SECS = 300.0
 
     def __init__(self, base_url, serverurl, client_url, appkey, region="us",
                  game_name="Armor Battle", server_name="Armor Battle Netplay"):
@@ -386,7 +397,7 @@ class LobbyPublisher:
             "status": "online",
             "maxplayers": 2,
             "curplayers": 0,
-            "clients": [{"platform": "intellivision", "url": client_url}],
+            "clients": [{"platform": "intv", "url": client_url}],
         }
         self.failures = 0
         self._cond = threading.Condition()
@@ -417,11 +428,13 @@ class LobbyPublisher:
     def _run(self):
         while True:
             with self._cond:
+                deadline = time.monotonic() + self.KEEPALIVE_SECS
                 while not self._dirty and not self._stopping:
-                    self._cond.wait()
+                    if not self._cond.wait(deadline - time.monotonic()):
+                        self._dirty = True      # keepalive: re-POST as-is
+                self._dirty = False
                 if self._stopping:
                     return
-                self._dirty = False
                 snapshot = dict(self.payload)
             self._post(snapshot)
             self._stop_evt.wait(1.0)    # debounce; returns early on shutdown
@@ -450,14 +463,19 @@ def main():
                     help="lockstep input delay in game ticks")
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--lobby-enabled", action="store_true",
-                    help="register with the FujiNet Lobby")
+                    help="register with the FujiNet Lobby (production runs: "
+                         "server/run_production.sh passes this)")
     ap.add_argument("--lobby-url", default="https://lobby.fujinet.online")
-    ap.add_argument("--lobby-serverurl", default="TCP://localhost:9104/",
+    ap.add_argument("--lobby-serverurl",
+                    default="TCP://fujinet.online:9104/",
                     help="public endpoint clients should use")
-    ap.add_argument("--lobby-client-url", default="",
+    ap.add_argument("--lobby-client-url",
+                    default="TNFS://apps.irata.online/Intellivision/Games/"
+                            "Armor_Battle.rom",
                     help="TNFS path of the client ROM for Lobby boot")
-    ap.add_argument("--lobby-appkey", type=int, default=0,
-                    help="Lobby-assigned appkey id for this game")
+    ap.add_argument("--lobby-appkey", type=int, default=13,
+                    help="FujiNet-registry appkey id for this game "
+                         "(Armor Battle = 13; the Lobby rejects 0)")
     args = ap.parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,

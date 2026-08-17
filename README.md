@@ -71,3 +71,18 @@ Targets mirror the sibling ports: `verify-org`, `verify-patch`, `hook`,
 dis1600 / bin2rom, jzIntv at `~/Workspace/jzintv-20200712-src/bin/jzintv`
 (headless via SDL dummy drivers), fujinet-pc-rs232 dist at
 `~/Workspace/fujinet-pc-rs232/build/dist`.
+
+## FujiNet Lobby registration
+
+Production runs register this server as a room on the FujiNet Lobby
+(https://lobby.fujinet.online) so it shows up in the Intellivision Lobby
+client (`/view?platform=intv`):
+
+    server/run_production.sh        # relay on :9104, --lobby-enabled
+
+Room name = game name ("Armor Battle"), appkey 13, client ROM
+`TNFS://apps.irata.online/Intellivision/Games/Armor_Battle.rom` (upload the built
+.rom there when releasing).  The publisher re-POSTs every 5 minutes (the
+Lobby drops entries by stale lastping) and POSTs status "offline" on
+shutdown.  Local rigs never register: `--lobby-enabled` is opt-in and the
+rig targets force 127.0.0.1.  Contract test: `python3 tools/test_lobby_pub.py`.
