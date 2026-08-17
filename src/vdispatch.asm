@@ -1,6 +1,6 @@
 ; Virtual input-event dispatch engine.
 ;
-; Football is the Baseball hybrid: input reaches game state through the
+; Armor Battle is the Baseball hybrid: input reaches game state through the
 ; EXEC scan's $035D handler dispatch AND through one polled computed-index
 ; read of the decoded cells (patched to the SHADOW_CTRL pair).  Dispatch
 ; interception means nulling $035D during the real scan and replaying both
@@ -239,18 +239,20 @@ SCRIPT_TBL:
     ENDI
 
 ; ---------------------------------------------------------------------------
-; DANCE_SETTLE -- the game's VBLANK display dance installs its own ISR body
-; (FB_ISR_BODY = $5524; the mainline normally spins on the mailbox $0169
-; until the body restores the EXEC vector from $0163/$0164).  Anything about
-; to take over the display (the peer-left screen, the session screens) must
-; wait the dance out or race its BACKTAB/hscroll writes.  Bounded spin,
-; ~4 frames, watching the vector high byte for the game body's page ($55).
+; DANCE_SETTLE -- Armor Battle never installs a game ISR body (M2 finding
+; 8: zero cart writes to $0100/$0101), so there is no dance to wait out and
+; the vector-page compare below can never match ($0101 always holds the
+; EXEC default's page $11; AB_ISR_BODY is an impossible sentinel).  The
+; routine is kept engine-shaped: it falls straight through to the forced
+; EXEC-default restore, which is a harmless no-op re-assert here and keeps
+; the terminal-screen call sites identical across the ports.
 ; ---------------------------------------------------------------------------
+AB_ISR_BODY     EQU     $FF00           ; sentinel: no game ISR on this cart
 DANCE_SETTLE:
         PSHR    R5
         MVII    #6000,  R1
 @@ds_l: MVI     $101,   R0
-        CMPI    #FB_ISR_BODY SHR 8, R0
+        CMPI    #AB_ISR_BODY SHR 8, R0
         BNEQ    @@ds_done
         DECR    R1
         BNEQ    @@ds_l
@@ -301,9 +303,11 @@ REC_CAPTURE:
 ;     change, else 0 (the EXEC re-fires held keypad every scan)
 ;   $011F-cell fresh event (changed, bit 6 clear): value >= $80 -> keypad
 ;     handler [2] with R0 = k; disc (0-15) -> handler [0] with R0 = dir
-; For Football (table base $55D9, installed with a caller offset via the
-; JSR-R4 idiom at $55D6): +2 = $5752, +4 = $588A, +6/+8 = $5874; the EXEC
-; null table $1906 is installed between plays and at end-of-quarter.
+; For Armor Battle the three installed tables are the EXEC's own null table
+; $1906 (boot / battle end), $50DB (boot screen: 5 slots, all -> $518B, the
+; battle-start handler) and $52E4 (battle: slot0 NULL, slot1 $5BE3, slot2
+; $5C74 disc, slot3/4 $5C2C).  Post-battle continuation runs on the object-
+; walk callback surface ($11FA), not this dispatch.
 ; Handlers are entered like the EXEC does it: R1 = controller index (0 =
 ; left, 1 = right), R0 = event value, return via R5.
 ; Fidelity note: an imperfect replication differs IDENTICALLY on both

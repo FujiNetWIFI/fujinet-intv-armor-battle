@@ -277,16 +277,22 @@ LS_PASS:
         BEQ     @@ls_no_tbl
         MVO     R1,     $35D
 @@ls_no_tbl:
-        JSR     R5,     FB_SLOW_STEP    ; virtualized entry 1 (/15), sim state
-        JSR     R5,     FB_TICK_FAST    ; slow BEFORE fast: original table order
-        ; virtual dispatch: replay both sides' input events for this tick,
-        ; host side first, through the game's real handlers (live $035D)
+        ; virtual dispatch BEFORE the tick: Armor Battle's battle clone runs
+        ; its scan before the timer dispatch, so stock events land before
+        ; the same pass's game tick (see the MASTER_TICK comment in
+        ; src/hook.asm).  Replay both sides' input events for this tick,
+        ; host side first, through the game's real handlers (live $035D).
         CLRR    R0
         MVO     R0,     VD_SIDE
         JSR     R5,     LS_VDISPATCH
         MVII    #1,     R0
         MVO     R0,     VD_SIDE
         JSR     R5,     LS_VDISPATCH
+        MVI     AB_TICK_EN, R0          ; virtualized entry 1: the game stops/
+        TSTR    R0                      ;  starts its own tick through the
+        BEQ     @@ls_no_tick            ;  shimmed EXEC timer APIs
+        JSR     R5,     AB_TICK
+@@ls_no_tick:
         JSR     R5,     LS_TBL_ADOPT
         MVII    #NET_NULL_TBL+4, R0
         MVO     R0,     $35D
@@ -449,7 +455,10 @@ LS_IDLE_RMT:
         PULR    R7
 
 ; LS_CKSUM -- rotate-add checksum over the ISR-clean game state:
-; $015D-$01EF + canonical RNG + the virtualized slow-tick countdown.
+; $015D-$01EF + the cart globals $0315-$031B (Armor Battle keeps real state
+; -- terrain-map pointer etc. -- above its reset stack base $02F1, inside
+; the range the model otherwise excludes as stack) + canonical RNG + the
+; virtualized game-tick armed flag.
 LS_CKSUM:
         PSHR    R5
         CLRR    R0
@@ -459,6 +468,12 @@ LS_CKSUM:
         ADD@    R4,     R0
         CMPI    #$1F0,  R4
         BLT     @@lk_1
+        MVII    #$315,  R4
+@@lk_2: SLLC    R0,     1
+        ADCR    R0
+        ADD@    R4,     R0
+        CMPI    #$31C,  R4
+        BLT     @@lk_2
         SLLC    R0,     1
         ADCR    R0
         ADD     RNG_LO, R0
@@ -467,5 +482,5 @@ LS_CKSUM:
         ADD     RNG_HI, R0
         SLLC    R0,     1
         ADCR    R0
-        ADD     SLOW_CNT, R0
+        ADD     AB_TICK_EN, R0
         PULR    R7

@@ -252,6 +252,58 @@ Confirm boundary in dis1600 at M2.
     wins!"). Host = role 0 = left = **Blue**, guest = right = **Black**.
     Verify on screen at M7.
 
+## M3 findings — hook + virtualized dispatch
+
+1. **verify-patch OK, 33 declared sites, 33 changed** (31 from M2 + the two
+   NET_SCAN_WRAP operands added during M3, see finding 5).
+2. **Cadence: exactly 3.0 frames/pass** — consecutive `$17D5` stops are
+   44,802 cycles apart (÷14,934 cycles/frame = 3.000) → 20.0 Hz wall tick,
+   cleaner than Football's ~4-frame dance overhang.  1 tick per pass
+   confirmed against the built ROM.
+3. **Hook boot verified headless**: "Blue  : 50 / Black : 50" renders,
+   `$035D=$50DB`, `AB_TICK_EN=0` on the boot screen (stop shim fired), RNG
+   seed untouched until battle start; disc press → `$035D=$52E4`,
+   `AB_TICK_EN=1` (start shim), terrain in BACKTAB, cart globals live,
+   canonical RNG advanced (consumer wrappers active), SP=$02F1 in the clone
+   loop.
+4. **Replay order flipped vs Football — events BEFORE the tick.** First
+   virt==hook attempt diverged on tank rotation (`$0161/$016D` low nibble,
+   object cells): the battle clone runs its scan before the timer dispatch,
+   so stock handlers fire before the same pass's game tick; Football's
+   replay-after-the-tick order applied every event one tick late.  Replay-
+   before-the-tick is timeline-correct for BOTH loops (on the EXEC loop the
+   ring value captured at dispatch N is scan N-1's output, whose stock
+   events also landed between tick N-1 and tick N).  MASTER_TICK and
+   LS_PASS both reordered.
+5. **The $518B abandon needs a structural fix (NET_SCAN_WRAP).** The
+   battle-start handler resets SP and never returns, so the MASTER_TICK
+   that virtually dispatches it dies mid-flight: its `$035D` re-null tail
+   never runs and the clone's FIRST scan would see the live battle table
+   (one console's real local input could reach game state once at battle
+   entry).  Fixed by patching the clone's own `JSR $14F1` at `$52D4` to
+   NET_SCAN_WRAP: adopt + null + tail-call the real scan (structural
+   nulling; stock-behaving builds compile it to a plain jump; LS_TBL_ADOPT
+   already filters the null table so the extra adopt is idempotent).
+6. **Documented 1-tick counter skid at battle entry**: the abandoned
+   MASTER_TICK also skips its tick++ tail once per battle start, so virt
+   trails hook by exactly the number of battle entries.  Symmetric in
+   netplay and det (both sides replay the same event at the same tick);
+   the virt==hook verdict accepts state-identical + skid.
+7. **virt == hook PASS**: with the §7.12 port-read injection (`b 1527`/
+   `b 152E`, active-low, forced EVERY pass), all of `$015D-$01EF`, BACKTAB,
+   `$0315-$035C`, and AB_TICK_EN are bit-identical at park after a scripted
+   battle start + six-pass drive; excluded by design: `$035D` (nulled in
+   virt), `$035E/$035F` + PSG + `$0159` (real-frame sound domain).
+8. **Injection recipe for THIS cart**: $1532-only forcing (Football's M3
+   recipe) is NOT usable here — with the raw store coming from the real
+   (idle) port reads, the scan's unchanged-raw path re-marks the stale
+   decode as held forever (`$44` stuck 20 passes after release, both
+   builds).  Force at the PORT READS per PORTING §7.12: `b 1527` = LEFT,
+   `b 152E` = RIGHT, active-low bytes (idle `$FF`, disc N `$FB`, disc W
+   `$F7`), every pass unconditionally.  Two stops per pass in both loops;
+   pass-aligned settling (`b 17D5` stop counting), never instruction-count
+   alignment (builds differ in instruction streams).
+
 ## Decisions taken at plan time
 
 - Relay port **9104**, echo probe **9105** (9100/01/02/03 taken by Baseball,

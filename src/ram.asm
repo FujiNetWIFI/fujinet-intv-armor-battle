@@ -14,9 +14,13 @@
 NET_RAM         EQU     $8080   ; base of netcode state (zeroed by NET_START)
 NET_RAM_SIZE    EQU     $0180   ; $8080-$81FF zeroed at start
 
-SLOW_CNT        EQU     $8102   ; virtualized slow-tick countdown (timer entry
-                                ;  2, interval 15) -- sim state, freezes with
-                                ;  everything else during a stall
+AB_TICK_EN      EQU     $8102   ; virtualized game-tick armed flag (original
+                                ;  timer entry 1, stopped/started by the game
+                                ;  through the three shimmed EXEC timer-API
+                                ;  calls) -- sim state: CRC-covered via the
+                                ;  LS_CKSUM tail and carried in the resync
+                                ;  image tail, so it freezes and transports
+                                ;  with everything else
 RS_SPARE        EQU     $8103   ; resync image tail padding (always 0)
 DELAY_EN        EQU     $8105   ; virt-dispatch delay depth in game ticks
                                 ;  (0 = same-tick dispatch, stock feel)

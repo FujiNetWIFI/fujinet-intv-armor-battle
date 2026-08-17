@@ -12,18 +12,22 @@
 ; identical state.  The push is gated on a quiescent point so the swap is not
 ; visible -- see RS_PENDING for the ball-dead marker and the cap on waiting.
 ;
-; State image (759 bytes, positions 0..758):
+; State image (777 bytes, positions 0..776):
 ;   0..146    $015D-$01EF game scratch (bytes)
-;   147..626  $0200-$02EF BACKTAB (240 words, LE byte pairs)
-;   627..754  $031D-$035C object table (64 words, LE byte pairs)
-;   755..760  RNG_LO, RNG_HI, SLOW_CNT, RS_SPARE, GAME_TBL_LO/HI
+;   147..626  $0200-$02EF BACKTAB (240 words, LE byte pairs) -- on this cart
+;             the BACKTAB is also the battlefield terrain, so the image
+;             transports the map for free
+;   627..770  $0315-$035C cart globals + object table (72 words, LE byte
+;             pairs; $0315-$031B are Armor Battle's real state above its
+;             reset stack base -- see spikes/NOTES.md M2 finding 10)
+;   771..776  RNG_LO, RNG_HI, AB_TICK_EN, RS_SPARE, GAME_TBL_LO/HI
 ; STATE chunk frame: [len][08][pos_lo][pos_hi][data...]; pos_hi = $FF marks
 ; control: pos_lo 0 = BEGIN (payload R_lo,R_hi), 1 = END.
 
 IMG_S1          EQU     147
 IMG_S2          EQU     627
-IMG_S3          EQU     755
-IMG_TOTAL       EQU     761
+IMG_S3          EQU     771
+IMG_TOTAL       EQU     777
 RS_CHUNK        EQU     96
 RS_HOLD_TMO     EQU     $0600           ; hold pump rounds before giving up
 
@@ -399,12 +403,13 @@ RS_REBASE:
 ; bonus: the image is now always serialized at the same fixed point in the
 ; pass, after the tick and its virtual dispatch have finished.
 ; ---------------------------------------------------------------------------
-; Football has genuine dead-ball moments: phases 0-4 (reset / post-tackle /
-; play select / line up / huts), 9 (post-score) and $A (end of game) are all
-; ball-dead; the ball is live only in phases 5-8 and $B (run / pass / kick /
-; return).  A play rarely lasts more than a few seconds, so the cap fires
-; only if the runner stays alive unusually long.
-RS_PEND_MAX     EQU     60              ; game ticks (~3 s at 20 Hz)
+; Armor Battle is Auto Racing's case, not Football's: a battle is continuous
+; real-time with no dead moments, and battles run for minutes.  The gate
+; reads the adopted handler table (GAME_TBL, maintained by LS_TBL_ADOPT):
+; anything other than the battle table ($52E4) -- the boot/"Push disc"
+; screen or the battle-end/explosion state -- is quiescent.  Mid-battle the
+; cap fires and we accept a visible jump, exactly the AR trade.
+RS_PEND_MAX     EQU     40              ; game ticks (~2 s at 20 Hz)
 
 RS_PENDING:
         PSHR    R5
@@ -420,16 +425,15 @@ RS_PENDING:
         MVI     RS_PTMO, R0
         INCR    R0
         MVO     R0,     RS_PTMO
-        ; quiescent?  dead ball = FB_PHASE <= 4, or 9/$A (post-score / end
-        ; of game); live = 5-8 (run/pass/kick) and $B (kick return)
-        MVI     FB_PHASE, R0
-        CMPI    #5,     R0
-        BLT     @@rp_go
-        CMPI    #9,     R0
-        BLT     @@rp_tmo                ; 5-8: ball live
-        CMPI    #$0B,   R0
-        BLT     @@rp_go                 ; 9/$A: dead
-        B       @@rp_tmo                ; $B: kick return, live
+        ; quiescent?  any adopted handler table other than the battle one
+        ; ($52E4) means we are on the boot screen or in the battle-end /
+        ; explosion state -- nothing is moving that a swap could tear.
+        MVI     GAME_TBL_HI, R0
+        SWAP    R0,     1
+        ADD     GAME_TBL_LO, R0
+        CMPI    #AB_HTBL_BATTLE, R0
+        BNEQ    @@rp_go                 ; not in battle: swap is invisible
+        B       @@rp_tmo                ; mid-battle: wait for the cap
 @@rp_tmo:
         MVI     RS_PTMO, R0
         CMPI    #RS_PEND_MAX, R0
@@ -498,7 +502,7 @@ RS_CLR_CRC:
 ; IMG_PUT -- write byte R0 to image position R1.  Preserves R3.
 ; ---------------------------------------------------------------------------
 RS_TAILTBL:
-        DECLE   RNG_LO, RNG_HI, SLOW_CNT, RS_SPARE
+        DECLE   RNG_LO, RNG_HI, AB_TICK_EN, RS_SPARE
         DECLE   GAME_TBL_LO, GAME_TBL_HI
 
 IMG_GET:
@@ -522,7 +526,7 @@ IMG_GET:
         SUBI    #IMG_S2, R1
         MOVR    R1,     R0
         SLR     R0,     1
-        ADDI    #$31D,  R0
+        ADDI    #$315,  R0
         MOVR    R0,     R4
         ANDI    #1,     R1
 @@ig_w: MVI@    R4,     R0
@@ -563,7 +567,7 @@ IMG_PUT:
         SUBI    #IMG_S2, R1
         MOVR    R1,     R0
         SLR     R0,     1
-        ADDI    #$31D,  R0
+        ADDI    #$315,  R0
         MOVR    R0,     R4
         ANDI    #1,     R1
 @@ip_w: ; read-modify-write the 16-bit word (chunks arrive lo byte first)

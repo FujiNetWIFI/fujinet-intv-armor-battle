@@ -5,6 +5,9 @@
 X_MUSIC_TICK    EQU     $1A71   ; music note-timer routine (timer entry 0)
 X_RAND1         EQU     $167D   ; LFSR random, state at EXEC_RNG
 X_RAND2         EQU     $169E
+X_SCAN          EQU     $14F1   ; controller scan (the battle clone JSRs it
+                                ;  directly at $52D4; patched to
+                                ;  NET_SCAN_WRAP -- see src/hook.asm)
 
 EXEC_RNG        EQU     $035E   ; 16-bit LFSR state (System RAM)
 EXEC_ISR_DEF    EQU     $1126   ; the EXEC's default game-time ISR (what

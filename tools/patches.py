@@ -62,6 +62,15 @@
     0x5D94: "((NET_RAND2 SHR 10) SHL 2) OR $0100",   # JSR R5 @ $5D93
     0x5D95: "NET_RAND2 AND $3FF",
 
+    # --- The battle clone loop's own scan call -> structural nulling ---
+    # $518B (battle start) resets SP and never returns, so the MASTER_TICK
+    # that virtually dispatched it dies mid-flight and its $035D re-null
+    # tail never runs; the clone's first scan would see the real battle
+    # table.  NET_SCAN_WRAP adopts + nulls, then tail-calls X_SCAN ($14F1).
+    # Stock-behaving builds compile it to a plain jump.
+    0x52D5: "((NET_SCAN_WRAP SHR 10) SHL 2) OR $0100",  # JSR R5 @ $52D4
+    0x52D6: "NET_SCAN_WRAP AND $3FF",
+
     # --- Polled decoded-input read (inside the game tick at $554E) ---
     # MVII #$011F,R3 operand at $5569; the tick adds the player index (R0 =
     # 0 left, 1 right) and does MVI@, so this one site reads BOTH seats.
